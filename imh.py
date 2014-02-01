@@ -1,7 +1,10 @@
 #!/usr/bin/python
 import cv2
 import numpy as np
+import time
+from collections import Counter
 
+DEBUG = True
 PREFIX = "WrightStainImages/" 
 SUFFIXES = [".jpg", ".png", ".jpeg"]
 
@@ -13,6 +16,15 @@ functions that pull data from an image without changing the image itself
 def getROI(image, x1, x2, y1, y2):
     return image[x1:x2, y1:y2]
 
+def segmentCells(image, mincellsize=100):
+    boundingBoxes = []
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    ret,thresh = cv2.threshold(gray,150,255,cv2.THRESH_BINARY) 
+    contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        boundingBoxes.append(cv2.boundingRect(contour))
+    return boundingBoxes
+
 
 #================== HSV FUNCTIONS ==================================#
 def getHSVValues(img):
@@ -22,16 +34,27 @@ def getHSVValues(img):
             image_hsv_values.append(img[x,y])
     return image_hsv_values
 
-def calculateHSVBoundsAverage(img, margin):
+def calculateHSVBoundsAverage(img, margin=30):
+    if DEBUG:
+        start_time = time.time()
+        print "IMG SHAPE: ",img.shape
     hsv_values = getHSVValues(img)
     averages = [sum(y)/len(y) for y in zip(*hsv_values)]
-    print "AVERAGE HSV: ",str(averages)
     lower = (averages[0]-margin, 100, 100)
     upper = (averages[0]+margin, 100, 100)
+    if DEBUG:
+        print "TIME OF EXECUTION", time.time() - start_time, "seconds"
+        print "AVERAGE HSV: ",str(averages)
     return lower, upper 
 
-def calculateHSVBoundsMode(img, margin, avg_length):
+def calculateHSVBoundsMode(img, avg_length=20, margin=30):
+    if DEBUG:
+        start_time = time.time()
+        print "IMG SHAPE: ",img.shape
+
     hsv_values = getHSVValues(img)
+
+    """
     averages = []
     firstsum = 0
     for i in xrange(avg_length):
@@ -42,10 +65,27 @@ def calculateHSVBoundsMode(img, margin, avg_length):
     for i in xrange(avg_length,len(hsv_values)):
         prevavg = prevavg + hsv_values[i][0]/avg_length - hsv_values[i-avg_length][0]/avg_length
         averages.append(prevavg)
-    modehsv = max(averages)
-    print "MODE HUE: ", str(modehsv)
-    lower = (modehsv-margin, 100, 100)
-    upper = (modehsv+margin, 255, 255)
+    modehue = max(averages)
+    """
+
+    hues = [x[0] for x in hsv_values]
+    hueCounter = Counter(hues)
+    modehue = hueCounter.most_common(1)[0][0]
+
+    if DEBUG:
+        print "MOST COMMON: ", hueCounter.most_common(1)
+        print "TIME OF EXECUTION", time.time() - start_time, "seconds"
+        print "MODE HUE: ", str(modehue)
+
+    if modehue > margin and modehue < (255-margin):
+        lower = (modehue-margin, 100, 100)
+        upper = (modehue+margin, 255, 255)
+    elif modehue < margin:
+        lower = (0, 100, 100)
+        upper = (modehue+margin, 255, 255)
+    elif modehue > (255-margin):
+        lower = (modehue-margin, 100, 100)
+        upper = (255, 255, 255)
     return lower, upper
 
 
@@ -109,7 +149,7 @@ def loadImage(inputfile):
     return img 
 
 
-def showImage(windowName, image, key):
+def showImage(image, windowName="img", key=1):
     while cv2.waitKey(key):
     	cv2.imshow(windowName, image)
 
