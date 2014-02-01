@@ -2,6 +2,9 @@
 import cv2
 import numpy as np
 
+PREFIX = "WrightStainImages/" 
+SUFFIXES = [".jpeg", ".jpg", ".png"]
+
 #=================== IMAGE PROCESSING HELPER FNs ===================#
 
 def thresholdHSV(img, lowerHSV, upperHSV, erode_and_dilate=True):
@@ -42,12 +45,19 @@ def filterContoursByArea(img, contours, area_threshold=10000, draw=False):
 
 #==================  HELPER FUNCTIONS   ====================#
 
-def loadImage(filepath):
-    img = cv2.imread(filepath)
-    #if DEBUG:
-        #cv2.imshow("original", img)
-        #cv2.waitKey(3)
+def loadImage(inputfile):
+    suff_ind = 0
+    suffix = SUFFIXES[suff_ind]
+    for suffix in SUFFIXES:
+        path = PREFIX+inputfile+suffix
+        img = cv2.imread(path)
+        if img != None:
+            break
+    if img == None:
+        print "ERROR: image not found"
+        return
     return img 
+
 
 def showImage(windowName, image, key):
     while cv2.waitKey(key):
