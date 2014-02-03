@@ -26,10 +26,38 @@ based on hsv values
 
 def train(inputfile, outputoption):
     img = loadImage(inputfile)
+    imgWidth = img.shape[1]
+    imgHeight = img.shape[0]
+    boundingBoxes, boxImg = segmentCells(img)
 
-    boundingBoxes = segmentCells(img)
+    cv2.imshow("box", boxImg)
 
-    print boundingBoxes
+    for i in xrange(len(boundingBoxes)):
+        print i
+        box = boundingBoxes[i]
+        x, y, w, h = box  
+
+        if w >= imgWidth/2 and h >= imgHeight/2:
+            pass
+        else:
+            roi = getROI(img, y, y+h, x, x+w)
+
+            confirmedCells = {}
+
+            while True:
+                cv2.imshow("cell", roi)
+                cv2.waitKey(33)
+                x = raw_input("option (y or n): ")
+                print x
+                if x == 'y':
+                    confirmedCells[box] = True
+                    break
+                elif x == 'n':
+                    confirmedCells[box] = False
+                    break
+                else:
+                    print "not an option, please try again"
+            
 
 
 

@@ -16,14 +16,22 @@ functions that pull data from an image without changing the image itself
 def getROI(image, x1, x2, y1, y2):
     return image[x1:x2, y1:y2]
 
-def segmentCells(image, mincellsize=100):
+#TODO: ignore all bounding boxes that are inside of each other
+def segmentCells(image, mincellsize=1000, lower=190, upper=255):
     boundingBoxes = []
+    image = blur(image, 3)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    ret,thresh = cv2.threshold(gray,150,255,cv2.THRESH_BINARY) 
+    ret,thresh = cv2.threshold(gray,lower,upper,cv2.THRESH_BINARY) 
+    
+    #cv2.imshow("thresh", thresh)
+    
     contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
-        boundingBoxes.append(cv2.boundingRect(contour))
-    return boundingBoxes
+        contour_area = cv2.contourArea(contour)
+        if contour_area > mincellsize:
+            boundingBoxes.append(cv2.boundingRect(contour))
+    boxImg = drawBoundingBoxes(image, boundingBoxes)
+    return boundingBoxes, boxImg
 
 
 #================== HSV FUNCTIONS ==================================#
@@ -94,6 +102,7 @@ def getContours(img, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_SIMPLE):
     contours, hierarchy = cv2.findContours(img, mode, method)
     return contours, len(contours), hierarchy
 
+#TODO: separate this into two functions
 def filterContoursByArea(img, contours, area_threshold=10000, draw=False):
     areas = []
     num_big_contours = 0
@@ -105,6 +114,13 @@ def filterContoursByArea(img, contours, area_threshold=10000, draw=False):
             if draw:
                 cv2.drawContours(img, contours, i, (0, 0, 255))
     return num_big_contours, areas, img
+
+def drawBoundingBoxes(img, boxes):
+    for box in boxes:
+        x, y, w, h = box
+        cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
+    return img 
+
 
 #=================== IMAGE EDITING FUNCTIONS =======================#
 """
