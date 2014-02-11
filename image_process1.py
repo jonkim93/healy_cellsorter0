@@ -28,7 +28,7 @@ def train(inputfile, outputoption):
     img = loadImage(inputfile)
     imgWidth = img.shape[1]
     imgHeight = img.shape[0]
-    boundingBoxes, boxImg = segmentCells(img)
+    boundingBoxes, boxImg = segmentCells(img, 1000, )
 
     cv2.imshow("box", boxImg)
 
@@ -77,7 +77,7 @@ def hsv(inputfile, outputoption):
     thresh                                = thresholdHSV(img.copy(), lower, upper)  #3 threshold the colored image
     smoothed                              = erodeAndDilate(thresh.copy(), 12, 2)  #4 erode/dilate the thresholded image
     contours, tot_num_contours, hierarchy = getContours(smoothed)
-    num_big_contours, areas, original     = filterContoursByArea(original, contours, area_threshold=1000, draw=True)
+    num_big_contours, areas, original     = filterContoursByArea(original, contours, area_lower_threshold=10, area_upper_threshold=1000, draw=True)
     
     #cv2.imwrite(name+"_blurred.png", img)
     outputoption = outputoption.lower()
@@ -110,7 +110,7 @@ def gray(inputfile, outputoption):
     cont = thresh.copy()
 
     contours, tot_num_contours, hierarchy = getContours(cont)
-    num_big_contours, areas, original     = filterContoursByArea(img, contours, area_threshold=10000, draw=True)
+    num_big_contours, areas, original     = filterContoursByArea(img, contours, area_lower_threshold=10,area_upper_threshold=1000, draw=True)
     print num_big_contours
 
     if 't' in outputoption or 'thresh' in outputoption:
@@ -118,8 +118,9 @@ def gray(inputfile, outputoption):
     if 'c' in outputoption or 'contour' in outputoption or 'contours' in outputoption:
         cv2.imwrite(PREFIX+inputfile+"_contours.png", cont)
 
-    cv2.imshow("thresh", thresh)
-    showImage(contours,"blurred",  1)
+    #cv2.imshow("thresh", thresh)
+    showImage(thresh, "thresh", 1)
+    #showImage(contours,"blurred",  1)
 
 
 def main(argv):

@@ -102,14 +102,13 @@ def getContours(img, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_SIMPLE):
     contours, hierarchy = cv2.findContours(img, mode, method)
     return contours, len(contours), hierarchy
 
-#TODO: separate this into two functions
-def filterContoursByArea(img, contours, area_threshold=10000, draw=False):
+def filterContoursByArea(img, contours, area_lower_threshold=10000, area_upper_threshold=1000000, draw=False):
     areas = []
     num_big_contours = 0
     for i in xrange(len(contours)):
         contour_area = cv2.contourArea(contours[i])
         areas.append(contour_area)
-        if contour_area > area_threshold:
+        if contour_area > area_lower_threshold and contour_area < area_upper_threshold:
             num_big_contours += 1
             if draw:
                 cv2.drawContours(img, contours, i, (0, 0, 255))
@@ -123,6 +122,12 @@ def drawBoundingBoxes(img, boxes):
 
 
 #=================== IMAGE EDITING FUNCTIONS =======================#
+
+def generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, at_blur_ksize, at_ed_iter, at_ed_ksize):
+    if bt_blur_ksize > 0:
+        
+
+
 """
 functions that actually act on the image and change its state
 """
