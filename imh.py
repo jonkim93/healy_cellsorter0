@@ -123,15 +123,62 @@ def drawBoundingBoxes(img, boxes):
 
 #=================== IMAGE EDITING FUNCTIONS =======================#
 
-def generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, at_blur_ksize, at_ed_iter, at_ed_ksize):
+def generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, upper, lower, at_blur_ksize, at_ed_iter, at_ed_ksize):
+    bt_blurred = None
+    bt_ed = None
+    cvted_img = None
+    thresh = None
+    at_blurred = None
+    at_ed = None
+    final = None 
+
+    # bt = before thresholding
     if bt_blur_ksize > 0:
-        
+        bt_blurred = blur(img.copy(), bt_blur_ksize)
+    if bt_ed_iter > 0:
+        if bt_blurred != None:
+            bt_ed = erodeAndDilate(bt_blurred.copy(), bt_ed_iter, bt_ed_ksize)
+        else:
+            bt_ed = erodeAndDilate(img.copy(), bt_ed_iter, bt_ed_ksize)
+
+    # what style of thresholding?
+    if thresh_style == "hsv":
+        cvted_img = cv2.cvtColor(bt_ed.copy(), cv2.COLOR_BGR2HSV)
+        thresh = thresholdHSV(cvted_img.copy(), lower, upper)
+    elif thresh_style == "gray":
+        cvted_img = cv2.cvtColor(bt_ed.copy(), cv2.COLOR_BGR2GRAY)
+        thresh = cv2.threshold(cvted_img.copy(), lower, upper, cv2.THRESH_BINARY)
+
+    # at = after thresholding
+    if at_blur_ksize > 0:
+        at_blurred = blur(thresh.copy(), at_blur_ksize)
+    if at_ed_iter > 0:
+        if at_blurred != None:
+            at_ed = erodeAndDilate(at_blurred.copy(), at_ed_iter, at_ed_ksize)
+        else:
+            at_ed = erodeAndDilate(thresh.copy(), at_ed_iter, at_ed_ksize)
+
+    if at_ed != None:
+        final = at_ed
+    elif at_blurred != None:
+        final = at_blurred
+    elif thresh != None:
+        final = thresh
+    elif cvted_img != None:
+        final = cvted_img
+    elif bt_ed != None:
+        final = bt_ed
+    elif bt_blurred != None:
+        final = bt_blurred
+    else:
+        final = img
+    return final 
 
 
 """
 functions that actually act on the image and change its state
 """
-def thresholdHSV(img, lowerHSV, upperHSV, erode_and_dilate=True):
+def thresholdHSV(img, lowerHSV, upperHSV):
     """ 
     Thresholds an image for a certain range of hsv values 
     """ 
