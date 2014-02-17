@@ -5,7 +5,7 @@ import time
 from collections import Counter
 
 DEBUG = False
-PREFIX = "CellBoundImages/" #"WrightStainImages/" 
+PREFIXES = ["CellBoundImages/", "WrightStainImages/" ]
 SUFFIXES = [".jpg", ".png", ".jpeg", ".tif"]
 
 #=================== IMAGE DATA FUNCTIONS ==========================#
@@ -138,18 +138,25 @@ def drawBoundingBoxes(img, boxes):
 
 
 def getCircles(img,minRadius=1, maxRadius=30,method=cv2.cv.CV_HOUGH_GRADIENT):
-    circles = cv2.HoughCircles(img,method,1,20,50,100,minRadius,maxRadius)
-    print len(circles[0])
+    img = cv2.Canny(img, 10, 80)
+    cv2.imshow("canny", img)
+    circles = cv2.HoughCircles(img, cv2.cv.CV_HOUGH_GRADIENT, 2, 10, np.array([]), 40, 60, 5, 1000)
+    #circles = cv2.HoughCircles(img,method,1,20,50,100,minRadius,maxRadius)
+    if circles != None:
+        print len(circles[0])
     return circles 
 
 def drawCircles(img, circles):
-    circles = np.uint16(np.around(circles))
-    for circle in circles:
-        for i in circles[0,:]:
-            # draw the outer circle
-            cv2.circle(img,(i[0],i[1]),i[2],(0,255,0),2)
-            # draw the center of the circle
-            cv2.circle(img,(i[0],i[1]),2,(0,0,255),3)
+    if circles != None:
+        circles = np.uint16(np.around(circles))
+        for circle in circles:
+            for i in circles[0,:]:
+                # draw the outer circle
+                cv2.circle(img,(i[0],i[1]),i[2],(0,255,0),2)
+                # draw the center of the circle
+                cv2.circle(img,(i[0],i[1]),2,(0,0,255),3)
+    else:
+        print "ERROR: NO CIRCLES"
     return img 
 
 
@@ -180,6 +187,7 @@ def generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, up
     else:
         bt_intermediate = img.copy() 
 
+    #cv2.imshow("bt_intermediate", bt_intermediate)
     # what style of thresholding?
     if thresh_style == "hsv":
         cvted_img = cv2.cvtColor(bt_intermediate.copy(), cv2.COLOR_BGR2HSV)
@@ -245,9 +253,12 @@ functions that act on files and load images, etc
 def loadImage(inputfile):
     suff_ind = 0
     suffix = SUFFIXES[suff_ind]
-    for suffix in SUFFIXES:
-        path = PREFIX+inputfile+suffix
-        img = cv2.imread(path)
+    for prefix in PREFIXES:
+        for suffix in SUFFIXES:
+            path = prefix+inputfile+suffix
+            img = cv2.imread(path)
+            if img != None:
+                break
         if img != None:
             break
     if img == None:

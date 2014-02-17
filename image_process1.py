@@ -11,8 +11,8 @@ from machinelearning import *
 from util import *
 from mira import *
 
-# NOTE: think about eroding and dilating 
-# NOTE: think about adaptive thresholding
+#TODO: ADD IN PARSE OPTION FOR MIRACLASSIFY
+#
 
 DEBUG = True
 BLUR = True
@@ -158,9 +158,12 @@ attempt at grayscaling then thresholding
 def gray(inputfile, outputoption):
     img = loadImage(inputfile)
 
-    s = subDivideImage(img, 10, 10)
-    img = s[0]
-    img = cv2.resize(img, (1000,1000))
+    SUBDIVIDE = True
+
+    if SUBDIVIDE:
+        s = subDivideImage(img, 10, 10)
+        img = s[0]
+        img = cv2.resize(img, (1000,1000))
     
 
     bt_blur_ksize = 0
@@ -168,11 +171,11 @@ def gray(inputfile, outputoption):
     bt_ed_ksize = 0
     thresh_style = "gray"
     upper = 255
-    lower = 130
+    lower = 100
     at_blur_ksize = 0 
     at_ed_iter = 0
     at_ed_ksize = 0
-    
+
     (final,\
      bt_blurred,\
      bt_ed,\
@@ -180,11 +183,12 @@ def gray(inputfile, outputoption):
      thresh,\
      at_blurred,\
      at_ed) = generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, upper, lower, at_blur_ksize, at_ed_iter, at_ed_ksize) 
-    
+
+    #final = cvted_img.copy()
     final = cv2.bitwise_not(final.copy())
     cv2.imshow("final", final)
 
-    c = getCircles(final.copy())
+    c = getCircles(img.copy())
     circleImage = drawCircles(img.copy(), c)
 
     cv2.imshow("sub", circleImage)

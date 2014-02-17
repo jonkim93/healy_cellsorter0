@@ -13,7 +13,7 @@ def featureExtractor(roi): # WHAT SHOULD THE ROI INPUT BE??? an hsv image . . .
 	features = util.Counter()
 
 	gray = cv2.cvtColor(roi.copy(), cv2.COLOR_BGR2GRAY)
-    ret,thresh = cv2.threshold(gray,lower,upper,cv2.THRESH_BINARY) 
+	ret,thresh = cv2.threshold(gray,lower,upper,cv2.THRESH_BINARY) 
 
 	contours, numContours, hierarchy = getContours(thresh)
 
