@@ -4,9 +4,9 @@ import numpy as np
 import time
 from collections import Counter
 
-DEBUG = True
-PREFIX = "WrightStainImages/" 
-SUFFIXES = [".jpg", ".png", ".jpeg"]
+DEBUG = False
+PREFIX = "CellBoundImages/" #"WrightStainImages/" 
+SUFFIXES = [".jpg", ".png", ".jpeg", ".tif"]
 
 #=================== IMAGE DATA FUNCTIONS ==========================#
 """
@@ -16,14 +16,29 @@ functions that pull data from an image without changing the image itself
 def getROI(image, x1, x2, y1, y2):
     return image[x1:x2, y1:y2]
 
+def subDivideImage(img, w_div=4, h_div=4):
+    width = img.shape[0]
+    height = img.shape[1]
+    sub_w = float(width)/float(w_div)
+    sub_h = float(height)/float(h_div)
+    subdividedimgs = []
+    for x in xrange(w_div):
+        for y in xrange(h_div):
+            #print "x: ",str(sub_w*x)
+            #print "y: ",str(sub_h*y)
+            subdividedimgs.append(getROI(img, sub_w*x, sub_w*x+sub_w, sub_h*y, sub_h*y+sub_h))
+    return subdividedimgs
+    
+
+
 #TODO: ignore all bounding boxes that are inside of each other
-def segmentCells(image, mincellsize=1000, lower=190, upper=255):
+def segmentCells(image, mincellsize=1000, lower=130, upper=255):
     boundingBoxes = []
     image = blur(image, 3)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     ret,thresh = cv2.threshold(gray,lower,upper,cv2.THRESH_BINARY) 
     
-    #cv2.imshow("thresh", thresh)
+    cv2.imshow("thresh", thresh)
     
     contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
@@ -49,10 +64,11 @@ def calculateHSVBoundsAverage(img, margin=30):
     hsv_values = getHSVValues(img)
     averages = [sum(y)/len(y) for y in zip(*hsv_values)]
     lower = (averages[0]-margin, 100, 100)
-    upper = (averages[0]+margin, 100, 100)
+    upper = (averages[0]+margin, 255, 255)
     if DEBUG:
         print "TIME OF EXECUTION", time.time() - start_time, "seconds"
         print "AVERAGE HSV: ",str(averages)
+    print "\t\t",str(averages)
     return lower, upper 
 
 def calculateHSVBoundsMode(img, avg_length=20, margin=30):
@@ -121,6 +137,22 @@ def drawBoundingBoxes(img, boxes):
     return img 
 
 
+def getCircles(img,minRadius=1, maxRadius=30,method=cv2.cv.CV_HOUGH_GRADIENT):
+    circles = cv2.HoughCircles(img,method,1,20,50,100,minRadius,maxRadius)
+    print len(circles[0])
+    return circles 
+
+def drawCircles(img, circles):
+    circles = np.uint16(np.around(circles))
+    for circle in circles:
+        for i in circles[0,:]:
+            # draw the outer circle
+            cv2.circle(img,(i[0],i[1]),i[2],(0,255,0),2)
+            # draw the center of the circle
+            cv2.circle(img,(i[0],i[1]),2,(0,0,255),3)
+    return img 
+
+
 #=================== IMAGE EDITING FUNCTIONS =======================#
 
 def generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, upper, lower, at_blur_ksize, at_ed_iter, at_ed_ksize):
@@ -141,13 +173,20 @@ def generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, up
         else:
             bt_ed = erodeAndDilate(img.copy(), bt_ed_iter, bt_ed_ksize)
 
+    if bt_ed != None:
+        bt_intermediate = bt_ed
+    elif bt_blurred != None:
+        bt_intermediate = bt_blurred
+    else:
+        bt_intermediate = img.copy() 
+
     # what style of thresholding?
     if thresh_style == "hsv":
-        cvted_img = cv2.cvtColor(bt_ed.copy(), cv2.COLOR_BGR2HSV)
+        cvted_img = cv2.cvtColor(bt_intermediate.copy(), cv2.COLOR_BGR2HSV)
         thresh = thresholdHSV(cvted_img.copy(), lower, upper)
     elif thresh_style == "gray":
-        cvted_img = cv2.cvtColor(bt_ed.copy(), cv2.COLOR_BGR2GRAY)
-        thresh = cv2.threshold(cvted_img.copy(), lower, upper, cv2.THRESH_BINARY)
+        cvted_img = cv2.cvtColor(bt_intermediate.copy(), cv2.COLOR_BGR2GRAY)
+        ret, thresh = cv2.threshold(cvted_img.copy(), lower, upper, cv2.THRESH_BINARY)
 
     # at = after thresholding
     if at_blur_ksize > 0:
@@ -172,7 +211,7 @@ def generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, up
         final = bt_blurred
     else:
         final = img
-    return final 
+    return (final, bt_blurred, bt_ed, cvted_img, thresh, at_blurred, at_ed) 
 
 
 """
@@ -212,7 +251,7 @@ def loadImage(inputfile):
         if img != None:
             break
     if img == None:
-        print "ERROR: image not found"
+        print "ERROR: image not found ", path
         return
     return img 
 
