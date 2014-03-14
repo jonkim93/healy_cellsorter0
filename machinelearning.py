@@ -7,9 +7,13 @@ from mira import *
 LEGAL_LABELS = ("lymphocyte", "other")
 INPUT_TO_LABEL = {"y": "lymphocyte",\
 				  "n": "other"}
+FEATURES = ["contour area",\
+			"average h",\
+			"average s",\
+			"average v"]
 
 
-def featureExtractor(roi): # WHAT SHOULD THE ROI INPUT BE??? an hsv image . . .
+def featureExtractor(roi, lower=130, upper=255): # WHAT SHOULD THE ROI INPUT BE??? an hsv image . . .
 	features = util.Counter()
 
 	gray = cv2.cvtColor(roi.copy(), cv2.COLOR_BGR2GRAY)
@@ -28,23 +32,19 @@ def featureExtractor(roi): # WHAT SHOULD THE ROI INPUT BE??? an hsv image . . .
 	return features 
 
 
-
-
-def makeTrainingData(roi_list):
+def makeTrainingData(roi_list, display_list):
 	trainingLabels, trainingData = [], [] 
-	for roi in roi_list:
-		user_input == None
-		cv2.imshow("cell", roi)
-        cv2.waitKey(33)
-        while user_input == None:
-	        user_input = raw_input("\toption (y or n): ")
-	        if user_input not in ["y","n"]:
-	        	print "Not a valid option, please enter y or n "
-	        	user_input = None
+	for x in xrange(len(roi_list)):
+		print "cell ",x
+		roi = roi_list[x]
+		print "\tlower, upper: "+str(calculateHSVBoundsMode(roi)[0])+\
+			", "+str(calculateHSVBoundsMode(roi)[1])
+		cv2.imshow("cell", display_list[x])
+		cv2.waitKey(33)
+		user_input = raw_input("\toption (y or n): ")
 		features = featureExtractor(roi)
 		trainingLabels.append(INPUT_TO_LABEL[user_input])
 		trainingData.append(features)
-	return trainingData, trainingLabels
-
-
-
+	print trainingData
+	print trainingLabels
+	return trainingData,trainingLabels

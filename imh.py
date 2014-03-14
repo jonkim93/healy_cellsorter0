@@ -5,13 +5,16 @@ import time
 from collections import Counter
 
 DEBUG = False
-PREFIXES = ["CellBoundImages/", "WrightStainImages/" ]
+PREFIXES = ["CellBoundImages/", "WrightStainImages/", "CellScope/" ]
 SUFFIXES = [".jpg", ".png", ".jpeg", ".tif"]
 
 #=================== IMAGE DATA FUNCTIONS ==========================#
 """
 functions that pull data from an image without changing the image itself
 """
+
+def resizeImg(img, scale_factor):
+    return cv2.resize(img, (int(img.shape[1]*scale_factor),int(img.shape[0]*scale_factor)))
 
 def getROI(image, x1, x2, y1, y2):
     return image[x1:x2, y1:y2]
@@ -32,7 +35,7 @@ def subDivideImage(img, w_div=4, h_div=4):
 
 
 #TODO: ignore all bounding boxes that are inside of each other
-def segmentCells(image, mincellsize=1000, lower=130, upper=255):
+def segmentCellsGray(image, mincellsize=10, lower=130, upper=255):
     boundingBoxes = []
     image = blur(image, 3)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -48,6 +51,39 @@ def segmentCells(image, mincellsize=1000, lower=130, upper=255):
     boxImg = drawBoundingBoxes(image, boundingBoxes)
     return boundingBoxes, boxImg
 
+def segmentCellsCanny(image, mincellsize=10, lower=130, upper=255):
+
+    boundingBoxes = []
+    gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
+    gray = blur(gray, 7)
+    gray = erodeAndDilate(gray, 15, 3)
+    cv2.imshow("gray", gray)
+    
+    canny = cv2.Canny(gray, 5, 50)  # PLAY AROUND WITH THESE VALUES
+
+
+    # PLAY AROUND WITH THIS STUFF ==================================
+    element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(4,4))
+    canny = cv2.dilate(canny, element)
+    element1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2,2))
+    canny = cv2.erode(canny, element1)
+    # ==============================================================
+    #circles = getCircles(gray)
+    #circleImg = drawCircles(image, circles)
+    #cv2.imshow("circles", circleImg)
+    #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #ret,thresh = cv2.threshold(gray,lower,upper,cv2.THRESH_BINARY) 
+    
+    cv2.imshow("canny", canny)
+    
+    contours, hierarchy = cv2.findContours(canny,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    #print type(contours)
+    for contour in contours:
+        contour_area = cv2.contourArea(contour)
+        if contour_area > mincellsize:
+            boundingBoxes.append(cv2.boundingRect(contour))
+    boxImg = drawBoundingBoxes(image, boundingBoxes)
+    return boundingBoxes, boxImg, canny 
 
 #================== HSV FUNCTIONS ==================================#
 def getHSVValues(img):
@@ -127,7 +163,9 @@ def filterContoursByArea(img, contours, area_lower_threshold=10000, area_upper_t
         if contour_area > area_lower_threshold and contour_area < area_upper_threshold:
             num_big_contours += 1
             if draw:
-                cv2.drawContours(img, contours, i, (0, 0, 255))
+                cv2.drawContours(img, contours, i, (0, 255, 0))
+                x, y, w, h = cv2.boundingRect(contours[i])
+                cv2.rectangle(img,(x,y),(x+w,y+h),(60,140,40),2)
     return num_big_contours, areas, img
 
 def drawBoundingBoxes(img, boxes):
@@ -136,6 +174,10 @@ def drawBoundingBoxes(img, boxes):
         cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
     return img 
 
+def drawBoundingBox(img, box):
+    x, y, w, h = box
+    cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
+    return img 
 
 def getCircles(img,minRadius=1, maxRadius=30,method=cv2.cv.CV_HOUGH_GRADIENT):
     img = cv2.Canny(img, 10, 80)
@@ -143,7 +185,7 @@ def getCircles(img,minRadius=1, maxRadius=30,method=cv2.cv.CV_HOUGH_GRADIENT):
     circles = cv2.HoughCircles(img, cv2.cv.CV_HOUGH_GRADIENT, 2, 10, np.array([]), 40, 60, 5, 1000)
     #circles = cv2.HoughCircles(img,method,1,20,50,100,minRadius,maxRadius)
     if circles != None:
-        print len(circles[0])
+        print "NUMBER OF CIRCLES: ",str(len(circles[0]))
     return circles 
 
 def drawCircles(img, circles):

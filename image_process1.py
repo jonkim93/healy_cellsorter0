@@ -14,11 +14,17 @@ from mira import *
 #TODO: ADD IN PARSE OPTION FOR MIRACLASSIFY
 #
 
+SCALE_FACTOR = 0.3
 DEBUG = True
 BLUR = True
 ERODE_DILATE = True
 LOWER_HSV = (125,15,100)
 UPPER_HSV = (165,255,255)
+
+SUBDIVIDE = True
+RESIZE = True
+
+PREFIX = "ProcessedImages/"
 
 #==================  MAIN  =================================#
 """
@@ -29,55 +35,81 @@ based on hsv values
 4) erode/dilate 
 """
 
-def train(inputfile, outputoption):
-    img = loadImage(inputfile)
+def train(img, inputfile, outputoption):
+    
+
     imgWidth = img.shape[1]
     imgHeight = img.shape[0]
-    boundingBoxes, boxImg = segmentCells(img, 50 )
 
-    boxImg = cv2.cvtColor(boxImg, cv2.COLOR_BGR2HSV)
-    cv2.imshow("box", boxImg)
+    CELL_SEG_OPTION = "CANNY" #"GRAY"
+
+    if CELL_SEG_OPTION == "CANNY":
+        boundingBoxes, boxImg, canny  = segmentCellsCanny(img, 100, 150, 255 ) #image, mincellsize, lower, upper
+    elif CELL_SEG_OPTION == "GRAY":
+        boundingBoxes, boxImg = segmentCellsGray(img, 10, 150, 255 ) #image, mincellsize, lower, upper
+
+    hsvBoxImg = cv2.cvtColor(boxImg.copy(), cv2.COLOR_RGB2HSV)
+
+    print "BOX IMG SHAPE: "+str(boxImg.shape)
+    if boxImg.shape[1] > 1500 or boxImg.shape[0] > 1500:
+        dispBoxImg = resizeImg(boxImg.copy(), SCALE_FACTOR)#float(1500/imgWidth))
+    else:
+        dispBoxImg = boxImg.copy()
+    cv2.imshow("box", dispBoxImg)
 
     roi_list = []
+    display_roi_list = []
 
     for i in xrange(len(boundingBoxes)):
-        print i
+        #print i
         box = boundingBoxes[i]
         x, y, w, h = box  
 
-        if w >= imgWidth/2 and h >= imgHeight/2:
+        if w >= imgWidth/8 and h >= imgHeight/8:
             pass
         else:
-            roi = getROI(boxImg, y, y+h, x, x+w)
+            roi = getROI(hsvBoxImg, y, y+h, x, x+w)
+            display_roi_list.append(getROI(boxImg, y, y+h, x, x+w))
             roi_list.append(roi)
-
-    trainingData, trainingLabels = makeTrainingData(roi_list)
-    miraClassifier = MiraClassifier(LEGAL_LABELS, max_iterations=5)
-    miraClassifier.train(trainingData, trainingLabels)
-    weights = miraClassifier.weights
-    weights_data = [(LEGAL_LABELS[0], LEGAL_LABELS[1], LEGAL_LABELS[2])]    
-    temp = []
-    for label in LEGAL_LABELS:
-        temp.append(weights[label])
-
-    name = "weights"
-    with open(name+'.csv', 'wb') as csvfile:
-        datawriter = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for datum in weights_data:
-            datawriter.writerow(datum)
+    if len(roi_list) > 0:
+        trainingData, trainingLabels = makeTrainingData(roi_list, display_roi_list)
+        miraClassifier = MiraClassifier(LEGAL_LABELS, max_iterations=5)
+        miraClassifier.train(trainingData, trainingLabels)
+        weights = miraClassifier.weights
+        print weights 
+        weights_data = [("FEATURES", LEGAL_LABELS[0], LEGAL_LABELS[1])]    
+        for feature in FEATURES:
+            weights_data.append((feature, weights[LEGAL_LABELS[0]][feature], \
+                weights[LEGAL_LABELS[1]][feature]))
+        #print temp
+        name = "weights"
+        with open(name+'.csv', 'wb') as csvfile:
+            datawriter = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            for datum in weights_data:
+                datawriter.writerow(datum)
 
             
-def miraClassify(inputfile, outputoption):
+def miraClassify(img, inputfile, outputoption):
     name = 'weights'
     weights = []
     with open(name+'.csv', 'rb') as csvfile:
-        datareader = cvs.reader(csvfile, delimiter=' ', quotechar='|')
+        datareader = csv.reader(csvfile, delimiter=' ', quotechar='|')
         for row in datareader:
             weights.append(row)
 
-    img = loadImage(inputfile)
+    print weights
+
+    mira_weights = {}
+    for l in LEGAL_LABELS:
+        mira_weights[l] = util.Counter()
+    
+    for y in xrange(1, len(weights)):
+        for a in xrange(len(LEGAL_LABELS)):
+            mira_weights[LEGAL_LABELS[a]][weights[y][0]] = float(weights[y][a+1])
+
+    print mira_weights
     miraClassifier = MiraClassifier(LEGAL_LABELS, max_iterations=5)
-    miraClassifier.weights = weights[1]
+    miraClassifier.weights = mira_weights
 
     imgWidth = img.shape[1]
     imgHeight = img.shape[0]
@@ -98,29 +130,32 @@ def miraClassify(inputfile, outputoption):
         else:
             roi = getROI(boxImg, y, y+h, x, x+w)
             roi_list.append(roi)
-    guesses = miraClassifier.classify(roi_list)
+    roi_feature_list = []
+    for roi in roi_list:
+        roi_feature_list.append(featureExtractor(roi))
+    guesses = miraClassifier.classify(roi_feature_list)
 
     numOfCells = 0
     for guess in guesses:
         if guess == "lymphocyte":
             numOfCells += 1
+    print guesses
 
     print "NUMBER OF CELLS: ", numOfCells
 
 
 
-def hsv(inputfile, outputoption):    
-    img = loadImage(inputfile)
+def hsv(img, inputfile, outputoption):    
 
     bt_blur_ksize = 0
-    bt_ed_iter = 0
-    bt_ed_ksize = 0
+    bt_ed_iter = 5
+    bt_ed_ksize = 3
     thresh_style = "hsv"
-    lower = (70,150,100)
+    lower = (100,50,50)
     upper = (150,255,255)
-    at_blur_ksize = 3
-    at_ed_iter = 5
-    at_ed_ksize = 3
+    at_blur_ksize = 7
+    at_ed_iter = 25
+    at_ed_ksize = 7
     
     (final,\
      bt_blurred,\
@@ -132,7 +167,7 @@ def hsv(inputfile, outputoption):
 
     #lower, upper = calculateHSVBoundsMode(img)    <---- THIS IS IMPORTANT; adaptive thresholding
     contours, tot_num_contours, hierarchy = getContours(final.copy())
-    num_big_contours, areas, cont_img    = filterContoursByArea(img.copy(), contours, area_lower_threshold=10, area_upper_threshold=1000, draw=True)
+    num_big_contours, areas, cont_img    = filterContoursByArea(img.copy(), contours, area_lower_threshold=1000, area_upper_threshold=100000, draw=True)
     
     outputoption = outputoption.lower()
     if 't' in outputoption or 'thresh' in outputoption:
@@ -143,35 +178,44 @@ def hsv(inputfile, outputoption):
         cv2.imwrite(PREFIX+inputfile+"_contours.png", cont_img)
 
     print num_big_contours
-    if bt_blurred != None: cv2.imshow("bt_blur", bt_blurred) 
-    if bt_ed != None: cv2.imshow("bt_ed", bt_ed)
-    if cvted_img != None: cv2.imshow("converted", cvted_img)
-    if thresh != None: cv2.imshow("thresholded", thresh)
-    if at_ed != None: cv2.imshow("smoothed", at_ed)
-    if cont_img != None: cv2.imshow("contours", cont_img)
-    showImage(cont_img, "contours",1)
+    images = [img, bt_blurred, bt_ed, cvted_img, thresh, at_ed, cont_img]
+    images_names = ("original",\
+                    "before threshold blur",\
+                    "before threshold erode/dilate",\
+                    "converted image",\
+                    "thresholded image",\
+                    "after threshold erode/dilate",\
+                    "contour image")
+    for x in xrange(0, len(images)):
+        if images[x] != None:
+            cv2.namedWindow(images_names[x], cv2.cv.CV_WINDOW_NORMAL)
+            #images[x] = resizeImg(images[x], SCALE_FACTOR)
+            cv2.imshow(images_names[x], images[x])
+            cv2.imwrite(inputfile+"_"+ images_names[x] +".png", images[x])
+    #showImage(images[-1], "contours",1)
+
     
 
 """
 attempt at grayscaling then thresholding
 """
-def gray(inputfile, outputoption):
-    img = loadImage(inputfile)
+def gray(img, inputfile, outputoption):
 
-    SUBDIVIDE = True
+    
 
     if SUBDIVIDE:
         s = subDivideImage(img, 10, 10)
         img = s[0]
         img = cv2.resize(img, (1000,1000))
-    
+    if RESIZE:
+        img = resizeImg(img.copy(), SCALE_FACTOR)
 
     bt_blur_ksize = 0
     bt_ed_iter = 0
     bt_ed_ksize = 0
     thresh_style = "gray"
     upper = 255
-    lower = 100
+    lower = 50
     at_blur_ksize = 0 
     at_ed_iter = 0
     at_ed_ksize = 0
@@ -206,6 +250,14 @@ def gray(inputfile, outputoption):
     showImage(thresh, "thresh", 1)
 
 
+def canny(img, inputfile, outputoption):
+    boundingBoxes, boxImg, canny = segmentCellsCanny(img, 100, 150, 255)
+    #canny = blur(canny, 3)
+    #canny = erodeAndDilate(canny, 15, 3)
+    
+    cv2.imwrite(PREFIX+inputfile+"_canny.png", canny)
+    cv2.imwrite(PREFIX+inputfile+"_boxes.png", boxImg)
+
 def main(argv):
     inputfile = ''
     thresholdoption=''
@@ -228,15 +280,31 @@ def main(argv):
     print 'Input file is: ', inputfile
     print 'Threshold option is:', thresholdoption
     print 'Output option is: ', outputoption
+    process_function = None
     if thresholdoption == "g" or thresholdoption == "gray" or thresholdoption == "grey":
-        gray(inputfile, outputoption)
+        process_function = gray
     elif thresholdoption == "h" or thresholdoption == "hsv":
-        hsv(inputfile, outputoption)
+        process_function = hsv 
     elif thresholdoption == "t" or thresholdoption == "train":
-        train(inputfile, outputoption)
+        process_function = train 
+    elif thresholdoption == "m" or thresholdoption == "machinelearn":
+        process_function = miraClassify
+    elif thresholdoption == "c" or thresholdoption == "canny":
+        process_function = canny 
     else:
         print "ERROR: no such threshold option; options are 'g' or 'gray' or 'grey' for grayscale, or 'h' or 'hsv' for hsv"
         sys.exit(2)
+
+    img = loadImage(inputfile)
+
+    if process_function != None:
+        if SUBDIVIDE:
+            s = subDivideImage(img, 4, 4)
+            for i in xrange(len(s)):
+                process_function(s[i], inputfile+"_"+str(i), outputoption)
+            cv2.waitKey(1)
+        else:
+            process_function(img, inputfile, outputoption)
 
 
 if __name__=='__main__':
