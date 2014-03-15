@@ -251,12 +251,13 @@ def gray(img, inputfile, outputoption):
 
 
 def canny(img, inputfile, outputoption):
-    boundingBoxes, boxImg, canny = segmentCellsCanny(img, 100, 150, 255)
+    boundingBoxes, boxImg, canny, circleImage = segmentBeadsCanny(img, 100, 150, 255)
     #canny = blur(canny, 3)
     #canny = erodeAndDilate(canny, 15, 3)
     
     cv2.imwrite(PREFIX+inputfile+"_canny.png", canny)
     cv2.imwrite(PREFIX+inputfile+"_boxes.png", boxImg)
+    cv2.imwrite(PREFIX+inputfile+"_circles.png", circleImage)
 
 def main(argv):
     inputfile = ''

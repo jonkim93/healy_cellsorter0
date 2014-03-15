@@ -85,6 +85,51 @@ def segmentCellsCanny(image, mincellsize=10, lower=130, upper=255):
     boxImg = drawBoundingBoxes(image, boundingBoxes)
     return boundingBoxes, boxImg, canny 
 
+
+def segmentBeadsCanny(image, mincellsize=10, lower=130, upper=255):
+
+    boundingBoxes = []
+    gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
+    gray = blur(gray, 7)
+    #gray = erodeAndDilate(gray, 15, 3)
+    cv2.imshow("gray", gray)
+    
+    canny = cv2.Canny(gray, 5, 50)  # PLAY AROUND WITH THESE VALUES
+
+
+    # PLAY AROUND WITH THIS STUFF ==================================
+    element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(6,6))
+    canny = cv2.dilate(canny, element)
+    element1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2,2))
+    canny = cv2.erode(canny, element1)
+    # ==============================================================
+    #circles = cv2.HoughCircles(canny.copy(), cv2.cv.CV_HOUGH_GRADIENT, 2, 10, np.array([]), 40, 60, 5, 1000)
+    circles = cv2.HoughCircles(canny.copy(),
+                               cv2.cv.CV_HOUGH_GRADIENT,
+                               1,
+                               50,           # min distance allowed between circles
+                               param1=50, 
+                               param2=10,    # if too many circles, increase, and vice versa
+                               minRadius=5,  # duh
+                               maxRadius=20) # duh
+    if circles != None:
+        print ("NUMBER OF CIRCLES: "+str(len(circles[0])))
+    circleImg = drawCircles(image.copy(), circles)
+    #cv2.imshow("circles", circleImg)
+    #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #ret,thresh = cv2.threshold(gray,lower,upper,cv2.THRESH_BINARY) 
+    
+    #cv2.imshow("canny", canny)
+    
+    contours, hierarchy = cv2.findContours(canny,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    #print type(contours)
+    for contour in contours:
+        contour_area = cv2.contourArea(contour)
+        if contour_area > mincellsize:
+            boundingBoxes.append(cv2.boundingRect(contour))
+    boxImg = drawBoundingBoxes(image, boundingBoxes)
+    return boundingBoxes, boxImg, canny, circleImg 
+
 #================== HSV FUNCTIONS ==================================#
 def getHSVValues(img):
     image_hsv_values = []
