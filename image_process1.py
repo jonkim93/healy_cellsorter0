@@ -251,13 +251,55 @@ def gray(img, inputfile, outputoption):
 
 
 def canny(img, inputfile, outputoption):
-    boundingBoxes, boxImg, canny, circleImage = segmentBeadsCanny(img, 100, 150, 255)
-    #canny = blur(canny, 3)
-    #canny = erodeAndDilate(canny, 15, 3)
+    boundingBoxes, boxImg, canny, circleImage, circles = segmentBeadsCanny(img, 100, 150, 255)
+    lower_hue = 10      # LOOOK HEREEEEEE
+    upper_hue = 100     # LOOOK HEREEEEEE
+    filteredBeads = filterBeads(img, circles, lower_hue, upper_hue) #filteredBeads is an array of 3-vectors of form (x,y,radius)
+    beadCenters = []
+    for bead in beadCenters:
+        beadCenters.append((bead[0], bead[1]))
+
+    bt_blur_ksize = 0
+    bt_ed_iter = 5
+    bt_ed_ksize = 3
+    thresh_style = "hsv"
+    lower = (100,50,50)
+    upper = (150,255,255)
+    at_blur_ksize = 7
+    at_ed_iter = 25
+    at_ed_ksize = 7
     
+    (final,\
+     bt_blurred,\
+     bt_ed,\
+     cvted_img,\
+     thresh,\
+     at_blurred,\
+     at_ed) = generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, upper, lower, at_blur_ksize, at_ed_iter, at_ed_ksize)
+    
+    contours, tot_num_contours, hierarchy = getContours(final.copy())
+    num_big_contours, areas, cont_img, filteredCells, filteredBoundingBoxes  = filterContoursByArea(img.copy(), \
+        contours, area_lower_threshold=1000, area_upper_threshold=100000, draw=True)
+    cellCenters = []
+    for cell in filteredBoundingBoxes:
+        cellCenters.append((cell[0]+cell[2]/2, cell[1]+cell[3]/2, (cell[2]+cell[3])/2))
+
+    MAX_DISTANCE = 100
+    beadAttachedCells = []
+    for cell in cellCenters:
+        for bead in beadCenters:
+            if distance((cell[0], cell[1]),bead) < MAX_DISTANCE:
+                beadAttachedCells.append(cell)
+                break
+
+    finalCellImg = drawCircles(img.copy(), beadAttachedCells)
+    print "NUMBER OF CELLS: "+len(beadAttachedCells)
+    cv2.imwrite(PREFIX+inputfile+"_final.png", finalCellImg)
     cv2.imwrite(PREFIX+inputfile+"_canny.png", canny)
     cv2.imwrite(PREFIX+inputfile+"_boxes.png", boxImg)
     cv2.imwrite(PREFIX+inputfile+"_circles.png", circleImage)
+
+
 
 def main(argv):
     inputfile = ''

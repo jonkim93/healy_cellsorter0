@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 import time
+import math
 from collections import Counter
 
 DEBUG = False
@@ -115,11 +116,6 @@ def segmentBeadsCanny(image, mincellsize=10, lower=130, upper=255):
     if circles != None:
         print ("NUMBER OF CIRCLES: "+str(len(circles[0])))
     circleImg = drawCircles(image.copy(), circles)
-    #cv2.imshow("circles", circleImg)
-    #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #ret,thresh = cv2.threshold(gray,lower,upper,cv2.THRESH_BINARY) 
-    
-    #cv2.imshow("canny", canny)
     
     contours, hierarchy = cv2.findContours(canny,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     #print type(contours)
@@ -128,7 +124,7 @@ def segmentBeadsCanny(image, mincellsize=10, lower=130, upper=255):
         if contour_area > mincellsize:
             boundingBoxes.append(cv2.boundingRect(contour))
     boxImg = drawBoundingBoxes(image, boundingBoxes)
-    return boundingBoxes, boxImg, canny, circleImg 
+    return boundingBoxes, boxImg, canny, circleImg, circles  
 
 #================== HSV FUNCTIONS ==================================#
 def getHSVValues(img):
@@ -191,27 +187,43 @@ def calculateHSVBoundsMode(img, avg_length=20, margin=30):
     elif modehue > (255-margin):
         lower = (modehue-margin, 100, 100)
         upper = (255, 255, 255)
-    return lower, upper
-
-
+    return lower, upper, modehue
 
 def getContours(img, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_SIMPLE):
     contours, hierarchy = cv2.findContours(img, mode, method)
     return contours, len(contours), hierarchy
 
+def filterBeads(img, circles, lower, upper):
+    circle_roi_list = []
+    filtered_beads = []
+    for circle in circles:
+        circle_roi_list.append(getROI(img, circle[0]-circle[2], circle[0]+circle[2], circle[1]-circle[2], circle[1]+circle[2]))
+    for x in xrange(len(circle_roi_list)):
+        hue_mode = calculateHSVBoundsMode(circle_roi_list[x])[2]
+        if hue_mode < upper and hue_mode > lower:
+            filtered_beads.append(circles[x])
+    return filtered_beads
+
+def distance(coord1, coord2):
+    return math.sqrt((coord1[0]-coord2[0])**2 + (coord1[1]-coord2[1])**2)
+
 def filterContoursByArea(img, contours, area_lower_threshold=10000, area_upper_threshold=1000000, draw=False):
     areas = []
+    filtered = []
+    filtered_bounding_boxes = []
     num_big_contours = 0
     for i in xrange(len(contours)):
         contour_area = cv2.contourArea(contours[i])
         areas.append(contour_area)
         if contour_area > area_lower_threshold and contour_area < area_upper_threshold:
             num_big_contours += 1
+            filtered.append(contours[i])
+            x, y, w, h = cv2.boundingRect(contours[i])
+            filtered_bounding_boxes.append((x,y,w,h))
             if draw:
                 cv2.drawContours(img, contours, i, (0, 255, 0))
-                x, y, w, h = cv2.boundingRect(contours[i])
                 cv2.rectangle(img,(x,y),(x+w,y+h),(60,140,40),2)
-    return num_big_contours, areas, img
+    return num_big_contours, areas, img, filtered, filtered_bounding_boxes
 
 def drawBoundingBoxes(img, boxes):
     for box in boxes:
