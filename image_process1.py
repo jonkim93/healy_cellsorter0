@@ -87,7 +87,7 @@ def train(img, inputfile, outputoption):
             datawriter = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for datum in weights_data:
                 datawriter.writerow(datum)
-
+    return None 
             
 def miraClassify(img, inputfile, outputoption):
     name = 'weights'
@@ -142,7 +142,7 @@ def miraClassify(img, inputfile, outputoption):
     print guesses
 
     print "NUMBER OF CELLS: ", numOfCells
-
+    return None
 
 
 def hsv(img, inputfile, outputoption):    
@@ -193,7 +193,7 @@ def hsv(img, inputfile, outputoption):
             cv2.imshow(images_names[x], images[x])
             cv2.imwrite(inputfile+"_"+ images_names[x] +".png", images[x])
     #showImage(images[-1], "contours",1)
-
+    return None 
     
 
 """
@@ -248,56 +248,68 @@ def gray(img, inputfile, outputoption):
     if 'c' in outputoption or 'contour' in outputoption or 'contours' in outputoption:
         cv2.imwrite(PREFIX+inputfile+"_contours.png", cont)
     showImage(thresh, "thresh", 1)
-
+    return None 
 
 def canny(img, inputfile, outputoption):
-    boundingBoxes, boxImg, canny, circleImage, circles = segmentBeadsCanny(img, 100, 150, 255)
-    lower_hue = 10      # LOOOK HEREEEEEE
-    upper_hue = 100     # LOOOK HEREEEEEE
-    filteredBeads = filterBeads(img, circles, lower_hue, upper_hue) #filteredBeads is an array of 3-vectors of form (x,y,radius)
+    
+    # modified parameters
+    bead_lower_hue =  5 #SUPT1    # CS: 130      # LOOOK HEREEEEEE
+    bead_upper_hue =  25 #SUPT1    # CS: 255     # LOOOK HEREEEEEE
+    cell_hsv_lower =  (0,50,50)    # CS: (100,50,50)      # CHANGE THIS
+    cell_hsv_upper =  (15,255,255)    # CS: (150,255,255)    # CHANGE THIS
+    MAX_DISTANCE = 1000
+
+
+    boundingBoxes, boxImg, canny, circleImage, circles = segmentBeadsCanny(img.copy(), 100, 150, 255)
+    filteredBeads = filterBeads(img, circles, bead_lower_hue, bead_upper_hue) #filteredBeads is an array of 3-vectors of form (x,y,radius)
     beadCenters = []
-    for bead in beadCenters:
+    for bead in filteredBeads:
         beadCenters.append((bead[0], bead[1]))
 
     bt_blur_ksize = 0
     bt_ed_iter = 5
     bt_ed_ksize = 3
     thresh_style = "hsv"
-    lower = (100,50,50)
-    upper = (150,255,255)
     at_blur_ksize = 7
     at_ed_iter = 25
     at_ed_ksize = 7
-    
+    area_lower_threshold = 1000
+    area_upper_threshold = 10000
+
+
     (final,\
      bt_blurred,\
      bt_ed,\
      cvted_img,\
      thresh,\
      at_blurred,\
-     at_ed) = generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, upper, lower, at_blur_ksize, at_ed_iter, at_ed_ksize)
+     at_ed) = generalProcess(img, bt_blur_ksize, bt_ed_iter, bt_ed_ksize, thresh_style, cell_hsv_upper, cell_hsv_lower, at_blur_ksize, at_ed_iter, at_ed_ksize)
     
     contours, tot_num_contours, hierarchy = getContours(final.copy())
     num_big_contours, areas, cont_img, filteredCells, filteredBoundingBoxes  = filterContoursByArea(img.copy(), \
-        contours, area_lower_threshold=1000, area_upper_threshold=100000, draw=True)
+        contours, area_lower_threshold, area_upper_threshold, draw=True)
     cellCenters = []
     for cell in filteredBoundingBoxes:
         cellCenters.append((cell[0]+cell[2]/2, cell[1]+cell[3]/2, (cell[2]+cell[3])/2))
 
-    MAX_DISTANCE = 100
-    beadAttachedCells = []
+    
+    beadAttachedCells = [[]]
     for cell in cellCenters:
         for bead in beadCenters:
             if distance((cell[0], cell[1]),bead) < MAX_DISTANCE:
-                beadAttachedCells.append(cell)
+                beadAttachedCells[0].append(cell)
                 break
-
+    print "BEAD ATTACHED CELLS"
+    print beadAttachedCells
+    print "NUMBER OF BEADS: "+str(len(beadCenters))
     finalCellImg = drawCircles(img.copy(), beadAttachedCells)
-    print "NUMBER OF CELLS: "+len(beadAttachedCells)
+    print "NUMBER OF CELLS: "+str(len(beadAttachedCells[0])) + "\n"
+    cv2.imwrite(PREFIX+inputfile+"_thresh.png", thresh)
     cv2.imwrite(PREFIX+inputfile+"_final.png", finalCellImg)
     cv2.imwrite(PREFIX+inputfile+"_canny.png", canny)
     cv2.imwrite(PREFIX+inputfile+"_boxes.png", boxImg)
     cv2.imwrite(PREFIX+inputfile+"_circles.png", circleImage)
+    return len(beadAttachedCells[0])
 
 
 
@@ -340,14 +352,16 @@ def main(argv):
 
     img = loadImage(inputfile)
 
+    totalCellCount = 0
     if process_function != None:
         if SUBDIVIDE:
             s = subDivideImage(img, 4, 4)
             for i in xrange(len(s)):
-                process_function(s[i], inputfile+"_"+str(i), outputoption)
+                totalCellCount += process_function(s[i], inputfile+"_"+str(i), outputoption)
+            print "TOTAL CELL COUNT: "+str(totalCellCount)
             cv2.waitKey(1)
         else:
-            process_function(img, inputfile, outputoption)
+            totalCellCount += process_function(img, inputfile, outputoption)
 
 
 if __name__=='__main__':

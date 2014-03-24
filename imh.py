@@ -171,7 +171,11 @@ def calculateHSVBoundsMode(img, avg_length=20, margin=30):
 
     hues = [x[0] for x in hsv_values]
     hueCounter = Counter(hues)
-    modehue = hueCounter.most_common(1)[0][0]
+    if len(hueCounter) != 0:
+        modehue = hueCounter.most_common(1)[0][0]
+    else:
+        #print "no values"
+        return None, None, None 
 
     if DEBUG:
         print "MOST COMMON: ", hueCounter.most_common(1)
@@ -181,10 +185,10 @@ def calculateHSVBoundsMode(img, avg_length=20, margin=30):
     if modehue > margin and modehue < (255-margin):
         lower = (modehue-margin, 100, 100)
         upper = (modehue+margin, 255, 255)
-    elif modehue < margin:
+    elif modehue <= margin:
         lower = (0, 100, 100)
         upper = (modehue+margin, 255, 255)
-    elif modehue > (255-margin):
+    elif modehue >= (255-margin):
         lower = (modehue-margin, 100, 100)
         upper = (255, 255, 255)
     return lower, upper, modehue
@@ -196,12 +200,23 @@ def getContours(img, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_SIMPLE):
 def filterBeads(img, circles, lower, upper):
     circle_roi_list = []
     filtered_beads = []
-    for circle in circles:
-        circle_roi_list.append(getROI(img, circle[0]-circle[2], circle[0]+circle[2], circle[1]-circle[2], circle[1]+circle[2]))
-    for x in xrange(len(circle_roi_list)):
-        hue_mode = calculateHSVBoundsMode(circle_roi_list[x])[2]
-        if hue_mode < upper and hue_mode > lower:
-            filtered_beads.append(circles[x])
+    #print img.shape
+    if circles != None:
+        for circle in circles[0]:
+            y1 = int(circle[0]-circle[2])
+            y2 = int(circle[0]+circle[2])
+            x1 = int(circle[1]-circle[2])
+            x2 = int(circle[1]+circle[2])
+            #print circle 
+            #print str(x1)+", "+str(x2)+ ": "+str(y1)+", "+str(y2)
+            circle_roi_list.append(getROI(img, x1, x2, y1, y2))
+        for x in xrange(len(circle_roi_list)):
+            #showImage(circle_roi_list[x])
+            hue_mode = calculateHSVBoundsMode(circle_roi_list[x])[2]
+            if hue_mode != None:
+                #print "HUE_MODE: "+str(hue_mode)
+                if hue_mode < upper and hue_mode > lower:
+                    filtered_beads.append(circles[0][x])
     return filtered_beads
 
 def distance(coord1, coord2):
